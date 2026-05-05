@@ -140,8 +140,26 @@ Precedência do .NET (do menor pro maior): `appsettings.json` → `appsettings.D
 
 ### 4. Aplicar as migrations
 
+Antes de executar o EF, faça restore da solução (isso gera os arquivos `obj/project.assets.json` de todos os projetos, inclusive `FCG.API` e `FCG.Infrastructure`):
+
+```bash
+dotnet restore FCG.slnx
+dotnet build src/FCG.API/FCG.API.csproj
+```
+
+Depois aplique as migrations:
+
 ```bash
 dotnet ef database update -p src/FCG.Infrastructure -s src/FCG.API
+```
+
+Se aparecer o erro `NETSDK1004: Assets file ... project.assets.json not found`, rode os comandos abaixo e tente novamente:
+
+```bash
+dotnet restore src/FCG.Infrastructure/FCG.Infrastructure.csproj
+dotnet restore src/FCG.API/FCG.API.csproj
+dotnet build src/FCG.API/FCG.API.csproj
+dotnet ef database update -p src/FCG.Infrastructure -s src/FCG.API --verbose
 ```
 
 ### 5. Rodar a API
