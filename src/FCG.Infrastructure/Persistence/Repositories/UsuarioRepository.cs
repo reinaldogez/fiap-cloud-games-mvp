@@ -23,16 +23,17 @@ public class UsuarioRepository(FcgDbContext contexto) : IUsuarioRepository
         CancellationToken cancellationToken = default
     ) => await contexto.Usuarios.FindAsync([id], cancellationToken);
 
-    public async Task AdicionarAsync(Usuario usuario, CancellationToken cancellationToken = default) =>
-        await contexto.Usuarios.AddAsync(usuario, cancellationToken);
+    public async Task AdicionarAsync(
+        Usuario usuario,
+        CancellationToken cancellationToken = default
+    ) => await contexto.Usuarios.AddAsync(usuario, cancellationToken);
 
     public async Task<bool> ExisteComEmailAsync(
         Email email,
         CancellationToken cancellationToken = default
     ) => await contexto.Usuarios.AnyAsync(u => u.Email == email, cancellationToken);
 
-    public void Atualizar(Usuario usuario) =>
-        contexto.Usuarios.Update(usuario);
+    public void Atualizar(Usuario usuario) => contexto.Usuarios.Update(usuario);
 
     public async Task<(IReadOnlyList<Usuario> Items, int Total)> ListarPaginadoAsync(
         int pagina,

@@ -8,6 +8,7 @@ MVP da plataforma FIAP Cloud Games. API em .NET 10 desenvolvida como Tech Challe
   - [Stack](#stack)
   - [Estrutura de pastas](#estrutura-de-pastas)
   - [Configuração local (primeira vez)](#configuração-local-primeira-vez)
+    - [Pré-requisitos](#pré-requisitos)
     - [1. Criar o arquivo de variáveis de ambiente](#1-criar-o-arquivo-de-variáveis-de-ambiente)
     - [2. Subir o SQL Server via Docker](#2-subir-o-sql-server-via-docker)
     - [3. Configurar os secrets da aplicação](#3-configurar-os-secrets-da-aplicação)
@@ -20,9 +21,15 @@ MVP da plataforma FIAP Cloud Games. API em .NET 10 desenvolvida como Tech Challe
     - [Fluxo](#fluxo)
     - [Endpoints de `UsuarioController`](#endpoints-de-usuariocontroller)
     - [Smoke test pelo Scalar ou Swagger](#smoke-test-pelo-scalar-ou-swagger)
+  - [Tratamento de Erros](#tratamento-de-erros)
+    - [Hierarquia de Exceptions](#hierarquia-de-exceptions)
+    - [Middleware Global](#middleware-global)
   - [Observabilidade](#observabilidade)
   - [Qualidade de código](#qualidade-de-código)
     - [Analyzers (build e IDE)](#analyzers-build-e-ide)
+      - [.editorconfig + Roslyn built-in](#editorconfig--roslyn-built-in)
+      - [StyleCop.Analyzers](#stylecopanalyzers)
+      - [SonarAnalyzer.CSharp](#sonaranalyzercsharp)
     - [Formatação (CSharpier)](#formatação-csharpier)
     - [Pre-commit hook (Husky)](#pre-commit-hook-husky)
     - [Análise de cobertura e qualidade agregada (SonarCloud)](#análise-de-cobertura-e-qualidade-agregada-sonarcloud)
@@ -47,7 +54,7 @@ A FIAP Cloud Games (FCG) será uma plataforma de venda de jogos digitais e gest�
 
 - **Cadastro de usuários** identificados por nome, e-mail e senha. O e-mail é validado quanto ao formato e a senha precisa ter pelo menos 8 caracteres, com letras, números e caracteres especiais. As senhas nunca são guardadas em texto puro — apenas o hash BCrypt vai para o banco.
 - **Autenticação via JWT** com dois níveis de acesso: usuário comum (acessa a plataforma) e administrador (administra usuários). O login devolve um access token de 1 hora e um refresh token de 7 dias, que pode ser trocado por um novo par sem precisar fazer login de novo. A cada renovação o refresh token anterior é revogado, e o logout invalida o refresh token apresentado.
-- **Gestão de perfil:** atualizar dados, trocar de senha, desativar a conta (soft delete) e alterar o tipo de usuário. As regras de quem pode fazer o quê são aplicadas via políticas de autorização (por exemplo: o próprio usuário ou um administrador podem alterar dados; só administradores podem desativar contas).
+- **Gestão de perfil:** atualizar dados, trocar de senha, desativar a conta (soft delete), reativar a conta e alterar o tipo de usuário. As regras de quem pode fazer o quê são aplicadas via políticas de autorização (por exemplo: o próprio usuário ou um administrador podem alterar dados; só administradores podem desativar contas).
 - **API REST com Controllers MVC** em .NET 10, documentada com OpenAPI (Scalar) — os endpoints podem ser explorados diretamente pelo navegador em `https://localhost:7222/scalar/v1`.
 - **Middleware global de erros** que captura exceções e devolve respostas padronizadas (formato `ProblemDetails`, RFC 7807) com um `traceId` em cada resposta para facilitar a correlação com logs.
 - **Persistência com Entity Framework Core** (Code-First) e migrations versionadas, usando SQL Server.
@@ -88,6 +95,12 @@ tests/
 ## Configuração local (primeira vez)
 
 Secrets nunca ficam no repositório. Configure via `.env` (Docker) e .NET User Secrets (aplicação).
+
+### Pré-requisitos
+
+*   **SDK do .NET 10** ou superior.
+*   **Docker Desktop** (ou daemon equivalente) para o SQL Server.
+*   **Entity Framework Core CLI** (`dotnet tool install --global dotnet-ef`).
 
 ### 1. Criar o arquivo de variáveis de ambiente
 
@@ -207,6 +220,44 @@ Em desenvolvimento, dois clientes estão disponíveis:
 
 Casos prontos em `src/FCG.API/FCG.API.http` (login → refresh → logout, e Authorization header já preenchido nos endpoints protegidos).
 
+## Tratamento de Erros
+
+O projeto utiliza uma estratégia de tratamento de erros centralizada no Domain, capturada por um middleware global na camada de API. Isso garante que as regras de negócio controlem o fluxo de erro sem vazar detalhes de infraestrutura.
+
+### Hierarquia de Exceptions
+
+As exceções de domínio herdam de `DomainException` e são mapeadas para códigos HTTP específicos:
+
+| Exception | Status | Categoria | Uso comum |
+|---|---|---|---|
+| `DomainException` | 400 | `ErroDeValidacao` | Dados inválidos, falha em VOs, senha fraca. |
+| `DomainConflictException` | 409 | `ErroDeNegocio` | Conflito de estado (ex: e-mail já cadastrado). |
+| `DomainAuthException` | 401 | `ErroDeAutenticacao` | Credenciais inválidas, refresh token expirado. |
+| `Outras (Inesperadas)` | 500 | `ErroInterno` | Falhas de banco, rede ou bugs não mapeados. |
+
+### Middleware Global
+
+O `ErrorHandlingMiddleware` intercepta todas as exceções e retorna um JSON estruturado seguindo o padrão **RFC 7807 (Problem Details)**. Elementos-chave da resposta:
+
+- **`type`**: Categoria estável do erro para o cliente, como `ErroDeValidacao`, `ErroDeNegocio`, `ErroDeAutenticacao` ou `ErroInterno`.
+- **`title`**: Título padronizado da resposta. No middleware atual ele é fixo como `Erro ao processar requisição`.
+- **`status`**: Código HTTP correspondente ao tipo da falha.
+- **`errors`**: Lista com as mensagens específicas do erro.
+- **`traceId`**: Identificador único do OpenTelemetry para correlação com logs.
+
+**Exemplo de resposta de erro (400):**
+```json
+{
+  "type": "ErroDeValidacao",
+  "title": "Erro ao processar requisição",
+  "status": 400,
+  "errors": [
+    "O formato do e-mail é inválido."
+  ],
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+}
+```
+
 ## Observabilidade
 
 A API usa **Serilog** para logs estruturados com correlação de rastreamento via **OpenTelemetry** (TraceId/SpanId W3C). O formato de saída varia por ambiente:
@@ -236,7 +287,46 @@ A análise estática e a formatação são aplicadas em três camadas complement
 | **SonarAnalyzer.CSharp** | 10.25.0.139117 | Detecção de bugs, code smells e vulnerabilidades |
 | **Roslyn built-in** | (`AnalysisMode=All`) | Regras de performance, confiabilidade e uso da BCL |
 
-Todas as regras rodam em tempo de build — os warnings aparecem no IDE e no output do `dotnet build`. Regras que conflitam com as convenções do projeto (por exemplo: SA1309 que proíbe `_` em campos privados, sendo que o projeto usa `_camelCase`) estão suprimidas com justificativa em [`Directory.Build.props`](Directory.Build.props). `EnforceCodeStyleInBuild=true` garante que as regras do `.editorconfig` também sejam verificadas no build, não apenas no IDE.
+Todas as regras rodam em tempo de build — warnings aparecem no IDE e no output do `dotnet build`. Nenhuma tem CLI própria; o ponto de entrada é sempre:
+
+```bash
+dotnet build                             # roda todos os analyzers
+dotnet build -warnaserror                # trata warnings como erro (simula CI)
+dotnet format --verify-no-changes        # verifica regras do .editorconfig sem modificar arquivos
+```
+
+#### .editorconfig + Roslyn built-in
+
+O [`.editorconfig`](.editorconfig) define **o que** o compilador verifica. Ele atua em duas frentes:
+
+- **Estilo visual** (indentação, chaves, espaços) — lido apenas pelo IDE; sem efeito no build.
+- **Diagnósticos Roslyn** (`IDE*` e `CA*`) — como `IDE0005` (using desnecessário), `IDE0290` (primary constructors), `CA1822` (membro pode ser `static`). Esses afetam o build porque o projeto define `EnforceCodeStyleInBuild=true` e `AnalysisMode=All` em [`Directory.Build.props`](Directory.Build.props).
+
+As **convenções de naming** também vivem no `.editorconfig` (prefixo `_` em campos privados, sufixo `Async`, `I` em interfaces, etc.) e são validadas pelo Roslyn como `warning`.
+
+Regras `CA*` suprimidas com justificativa estão em [`Directory.Build.props`](Directory.Build.props) (ex: `CA2007` é desnecessário em ASP.NET Core; `CA1812` dá falso positivo com injeção de dependência).
+
+#### StyleCop.Analyzers
+
+Foca em convenções de **escrita** C#: ordem de membros, posição de `using`, modificadores. Regras com prefixo `SA*`.
+
+A configuração extra fica em [`stylecop.json`](stylecop.json) (ex: `allowUnderscorePrefix: true` para compatibilizar com `_camelCase`). Regras que conflitam com as convenções do projeto estão suprimidas com justificativa em [`Directory.Build.props`](Directory.Build.props) (ex: `SA1309` proíbe `_` em campos, `SA1200` exige usings dentro do namespace).
+
+Para filtrar só os warnings StyleCop no output:
+
+```powershell
+dotnet build 2>&1 | Select-String "SA\d{4}"
+```
+
+#### SonarAnalyzer.CSharp
+
+Detecta bugs, anti-patterns de segurança e code smells. Regras com prefixo `S*` (ex: `S2259` null dereference, `S1481` variável não usada). É distinto do SonarCloud (CI): o pacote NuGet roda **localmente no build** um subconjunto das mesmas regras, antes de chegar ao CI.
+
+Para filtrar só os warnings Sonar no output:
+
+```powershell
+dotnet build 2>&1 | Select-String "\[S\d+\]"
+```
 
 ### Formatação (CSharpier)
 

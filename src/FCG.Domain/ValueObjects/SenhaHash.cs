@@ -4,7 +4,10 @@ namespace FCG.Domain.ValueObjects;
 
 public record SenhaHash
 {
-    private SenhaHash(string valor) => Valor = valor;
+    private SenhaHash(string valor)
+    {
+        Valor = valor;
+    }
 
     public string Valor { get; }
 

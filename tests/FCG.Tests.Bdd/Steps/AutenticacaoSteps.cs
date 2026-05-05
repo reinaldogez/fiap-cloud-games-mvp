@@ -35,7 +35,10 @@ public class AutenticacaoSteps(HttpClient client, CenarioEstado estado)
             .BeTrue($"pré-condição: login de '{email}' deveria ter retornado 2xx");
 
         string json = await estado.UltimaResposta.Content.ReadAsStringAsync();
-        LoginResponse? loginResponse = JsonSerializer.Deserialize<LoginResponse>(json, _jsonOptions);
+        LoginResponse? loginResponse = JsonSerializer.Deserialize<LoginResponse>(
+            json,
+            _jsonOptions
+        );
         loginResponse.Should().NotBeNull();
 
         estado.TokenAcesso = loginResponse!.AccessToken;
@@ -69,7 +72,10 @@ public class AutenticacaoSteps(HttpClient client, CenarioEstado estado)
     {
         estado.UltimaResposta.Should().NotBeNull();
         string json = await estado.UltimaResposta!.Content.ReadAsStringAsync();
-        LoginResponse? loginResponse = JsonSerializer.Deserialize<LoginResponse>(json, _jsonOptions);
+        LoginResponse? loginResponse = JsonSerializer.Deserialize<LoginResponse>(
+            json,
+            _jsonOptions
+        );
         loginResponse.Should().NotBeNull();
         loginResponse!.AccessToken.Should().NotBeNullOrWhiteSpace();
         loginResponse.RefreshToken.Should().NotBeNullOrWhiteSpace();
@@ -80,7 +86,10 @@ public class AutenticacaoSteps(HttpClient client, CenarioEstado estado)
     {
         estado.UltimaResposta.Should().NotBeNull();
         string json = await estado.UltimaResposta!.Content.ReadAsStringAsync();
-        LoginResponse? loginResponse = JsonSerializer.Deserialize<LoginResponse>(json, _jsonOptions);
+        LoginResponse? loginResponse = JsonSerializer.Deserialize<LoginResponse>(
+            json,
+            _jsonOptions
+        );
         loginResponse.Should().NotBeNull();
         loginResponse!.AccessToken.Should().NotBeNullOrWhiteSpace();
         loginResponse.RefreshToken.Should().NotBeNullOrWhiteSpace();

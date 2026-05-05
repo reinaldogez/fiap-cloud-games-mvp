@@ -7,7 +7,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace FCG.Tests.Integration.Api;
 
-public class UsuariosGraphQLTests(FcgApiFactory factory) : IClassFixture<FcgApiFactory>, IAsyncLifetime
+public class UsuariosGraphQLTests(FcgApiFactory factory)
+    : IClassFixture<FcgApiFactory>,
+        IAsyncLifetime
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
