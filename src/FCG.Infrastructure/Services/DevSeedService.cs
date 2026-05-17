@@ -35,18 +35,15 @@ public class DevSeedService(
         int totalAtual = await contexto.Usuarios.CountAsync(cancellationToken);
         if (totalAtual >= QuantidadeAlvo)
         {
-#pragma warning disable CA1873 // log diagnostico, argumentos triviais
             logger.LogInformation(
                 "DevSeed ignorado — banco já tem {Total} usuários (alvo: {Alvo}).",
                 totalAtual,
                 QuantidadeAlvo
             );
-#pragma warning restore CA1873
             return;
         }
 
         SenhaHash senhaHash = senhaService.GerarHash(SenhaPadrao);
-#pragma warning disable CA5394 // seed de desenvolvimento, randomness nao precisa ser criptografica
         var random = new Random(42);
         DateTime hoje = DateTime.UtcNow;
 
@@ -83,16 +80,13 @@ public class DevSeedService(
 
             await contexto.Usuarios.AddAsync(usuario, cancellationToken);
         }
-#pragma warning restore CA5394
 
         await contexto.SaveChangesAsync(cancellationToken);
-#pragma warning disable CA1873 // log diagnostico, argumentos triviais
         logger.LogInformation(
             "DevSeed concluído — {Criados} usuários criados (total agora: {Total}).",
             aCriar,
             totalAtual + aCriar
         );
-#pragma warning restore CA1873
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

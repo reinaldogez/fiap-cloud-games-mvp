@@ -71,18 +71,14 @@ public class ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorHandling
         }
         catch (OperationCanceledException ex) when (context.RequestAborted.IsCancellationRequested)
         {
-#pragma warning disable CA1873 // context.Request.Path é acesso trivial a struct, avaliação sem custo
             logger.LogInformation(
                 ex,
                 "Requisição cancelada pelo cliente. Path: {Path}",
                 context.Request.Path
             );
-#pragma warning restore CA1873
             context.Response.StatusCode = 499;
         }
-#pragma warning disable CA1031 // middleware global de erros: captura intencional de Exception
         catch (Exception ex)
-#pragma warning restore CA1031
         {
             string traceId = Activity.Current?.TraceId.ToHexString() ?? context.TraceIdentifier;
             logger.LogError(

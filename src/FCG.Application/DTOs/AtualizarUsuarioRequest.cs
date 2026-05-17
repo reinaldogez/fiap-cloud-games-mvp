@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace FCG.Application.DTOs;
 
-public record AtualizarUsuarioRequest(string Nome, string Email);
+public record AtualizarUsuarioRequest([Required] string Nome, [Required] string Email);

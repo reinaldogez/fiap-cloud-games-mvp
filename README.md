@@ -7,6 +7,7 @@ MVP da plataforma FIAP Cloud Games. API em .NET 10 desenvolvida como Tech Challe
   - [Sobre o projeto](#sobre-o-projeto)
   - [Stack](#stack)
   - [Estrutura de pastas](#estrutura-de-pastas)
+    - [Modelagem do Domain](#modelagem-do-domain)
   - [Configuração local (primeira vez)](#configuração-local-primeira-vez)
     - [Pré-requisitos](#pré-requisitos)
     - [1. Criar o arquivo de variáveis de ambiente](#1-criar-o-arquivo-de-variáveis-de-ambiente)
@@ -18,8 +19,11 @@ MVP da plataforma FIAP Cloud Games. API em .NET 10 desenvolvida como Tech Challe
     - [Secrets no repositório](#secrets-no-repositório)
   - [Como rodar os testes](#como-rodar-os-testes)
   - [Autenticação e Autorização](#autenticação-e-autorização)
+    - [Access token, claims e configuração JWT](#access-token-claims-e-configuração-jwt)
     - [Fluxo](#fluxo)
     - [Endpoints de `UsuarioController`](#endpoints-de-usuariocontroller)
+    - [Policy `OwnerOrAdmin`](#policy-owneroradmin)
+    - [Rate Limiting](#rate-limiting)
     - [Smoke test pelo Scalar ou Swagger](#smoke-test-pelo-scalar-ou-swagger)
   - [Tratamento de Erros](#tratamento-de-erros)
     - [Hierarquia de Exceptions](#hierarquia-de-exceptions)
@@ -91,6 +95,14 @@ tests/
   FCG.Tests.Integration   → Integração end-to-end com WebApplicationFactory + Testcontainers (SQL Server real em Docker).
   FCG.Tests.Bdd           → BDD com Reqnroll: cenários Gherkin (PT-BR) para os módulos de cadastro e autenticação.
 ```
+
+### Modelagem do Domain
+
+O Domain concentra três padrões DDD aplicados de forma deliberada:
+
+- **Value Objects imutáveis** (`Email`, `Senha`, `SenhaHash`) implementados como `record` com factory method estático que valida o conteúdo antes do objeto existir. Um e-mail malformado faz `Email.Criar` lançar `DomainException` antes da entidade `Usuario` ser instanciada — a validação não chega ao banco nem aos use cases. Para a materialização vinda do EF Core, cada VO expõe um par `Criar`/`Validar` (valida) + `Reconstituir` (sem validação, para dados já confiáveis no banco).
+- **Entidades ricas** com construtor privado e factory method estático (`Usuario.Criar(...)`). Um `Usuario` em estado inválido é impossível por construção, e regras invariantes vivem dentro da entidade — por exemplo, `AlterarTipoSolicitadoPor(novoTipo, solicitanteId)` impede que um administrador rebaixe a si mesmo, lançando `DomainException` antes de qualquer toque no banco.
+- **Domain Services** para regras que exigem acesso ao repositório (e portanto não cabem dentro da entidade). `IUsuarioDomainService.RegistrarAsync` é o exemplo: a unicidade de e-mail é uma regra de negócio que precisa consultar o `IUsuarioRepository`, e fica encapsulada num serviço de domínio em vez de poluir o use case com `if`s de regra.
 
 ## Configuração local (primeira vez)
 
@@ -198,6 +210,22 @@ Os testes de integração e BDD usam `Testcontainers.MsSql` para subir uma inst�
 
 A API usa **JWT Bearer** com dois níveis de acesso (`Usuario` e `Administrador`) e refresh tokens com **rotação**.
 
+### Access token, claims e configuração JWT
+
+O access token é assinado em **HS256** com a chave de `Jwt:SigningKey` e carrega as claims:
+
+| Claim | Conteúdo |
+|---|---|
+| `sub` | `Id` do usuário (`Guid`) — usado pela policy `OwnerOrAdmin` |
+| `email` | E-mail do usuário |
+| `name` | Nome do usuário |
+| `jti` | Identificador único do token (`Guid`) |
+| `role` | `Usuario` ou `Administrador` |
+
+A assinatura simétrica é adequada ao cenário de monolito MVP, em que o emissor e o validador do token são o mesmo serviço. Em uma futura evolução para microsserviços, a transição natural seria para **RS256** (par de chaves assimétricas) — cada serviço validaria o token apenas com a chave pública, sem precisar compartilhar o segredo de assinatura.
+
+> **Detalhe de configuração:** o `JwtBearerHandler` é configurado com `MapInboundClaims = false` e `NameClaimType = JwtRegisteredClaimNames.Sub`. Sem isso, o ASP.NET Core mapeia `sub` para `ClaimTypes.NameIdentifier` por padrão, e a policy `OwnerOrAdmin` (que lê `JwtRegisteredClaimNames.Sub` diretamente) silenciosamente deixa de funcionar.
+
 ### Fluxo
 
 1. **Login** — `POST /api/auth/login` com `{ "email", "senha" }` retorna:
@@ -228,6 +256,37 @@ Falhas de autenticação retornam **401** com mensagem genérica `"Credenciais i
 | `PATCH` | `/api/usuarios/{id}/desativar` | `Administrador` |
 | `PATCH` | `/api/usuarios/{id}/ativar` | `Administrador` (reverte o soft delete) |
 | `PATCH` | `/api/usuarios/{id}/tipo` | `Administrador` (admin não pode rebaixar a si mesmo → 400) |
+
+### Policy `OwnerOrAdmin`
+
+Endpoints com a marca *próprio dono **ou** `Administrador`* na tabela acima usam uma policy customizada em vez de `if`s de autorização espalhados pelos controllers. O `OwnerOrAdminHandler` (em `src/FCG.API/Authorization/`) resolve o requisito da seguinte forma:
+
+- Se o token tem `role = Administrador`, o acesso é liberado.
+- Caso contrário, o handler compara o claim `sub` do token com o parâmetro `{id}` da rota — se forem iguais, libera; senão, retorna 403.
+
+Concentrar a regra em um único handler facilita manutenção e auditoria: qualquer mudança no critério de "próprio dono" reflete automaticamente em todos os endpoints decorados com `[Authorize(Policy = "OwnerOrAdmin")]`. Em endpoints exclusivamente administrativos, a marcação direta `[Authorize(Roles = "Administrador")]` é suficiente e dispensa a policy.
+
+### Rate Limiting
+
+Todos os controllers REST estão decorados com `[EnableRateLimiting("fixed")]`, que aplica uma policy Fixed Window com particionamento híbrido:
+
+- **Requisições autenticadas** — partição pelo claim `sub` do JWT, ou seja, cada usuário consome a própria janela.
+- **Requisições anônimas** — partição pelo header `X-Forwarded-For` (ou `RemoteIpAddress` quando ausente), ou seja, o limite é por endereço de origem.
+
+A separação evita que um usuário legítimo seja bloqueado pelo abuso de outro na mesma rede corporativa, e ao mesmo tempo impede que um cliente anônimo distribua tentativas entre múltiplos endpoints sem ser limitado.
+
+Os limites são lidos da seção `RateLimit` do `appsettings.json`:
+
+```json
+{
+  "RateLimit": {
+    "PermitLimit": 10,
+    "WindowInSeconds": 60
+  }
+}
+```
+
+Ao exceder o limite a API retorna **429 Too Many Requests**. Em testes de integração o `PermitLimit` é sobrescrito para `int.MaxValue` via `FcgApiFactory`, evitando flakiness por janela compartilhada entre cenários. No pipeline de middlewares, `UseAuthentication()` vem **antes** de `UseRateLimiter()` para garantir que `httpContext.User` esteja populado quando a policy resolve a chave de particionamento.
 
 ### Smoke test pelo Scalar ou Swagger
 

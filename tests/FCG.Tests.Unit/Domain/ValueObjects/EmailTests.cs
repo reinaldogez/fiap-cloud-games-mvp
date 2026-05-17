@@ -14,9 +14,7 @@ public class EmailTests
     {
         var email = Email.Criar(endereco);
 
-#pragma warning disable CA1308 // e-mail: assertiva de normalização para lowercase é correta
         email.Endereco.Should().Be(endereco.ToLowerInvariant());
-#pragma warning restore CA1308
     }
 
     [Theory]

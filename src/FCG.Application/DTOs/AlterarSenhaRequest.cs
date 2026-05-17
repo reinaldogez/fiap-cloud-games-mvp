@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace FCG.Application.DTOs;
 
-public record AlterarSenhaRequest(string SenhaAtual, string NovaSenha);
+public record AlterarSenhaRequest([Required] string SenhaAtual, [Required] string NovaSenha);

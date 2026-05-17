@@ -57,9 +57,7 @@ public class OwnerOrAdminGraphQLHandler : AuthorizationHandler<OwnerOrAdminRequi
         {
             return resolverContext.ArgumentValue<Guid>(nomeArgumento);
         }
-#pragma warning disable CA1031 // captura intencional: argumento ausente ou de tipo incompativel cai pra null
         catch
-#pragma warning restore CA1031
         {
             return null;
         }

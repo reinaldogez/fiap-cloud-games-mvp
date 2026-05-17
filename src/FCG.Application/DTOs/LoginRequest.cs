@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace FCG.Application.DTOs;
 
-public record LoginRequest(string Email, string Senha);
+public record LoginRequest([Required] string Email, [Required] string Senha);

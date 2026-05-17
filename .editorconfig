@@ -220,3 +220,51 @@ dotnet_naming_style.async_method_style.capitalization = pascal_case
 # ============================================================================
 [tests/**/*.cs]
 dotnet_naming_rule.async_methods_should_end_with_async.severity = none
+# APIs sync sem versão async são comuns em código de teste (ex: JwtSecurityTokenHandler.ValidateToken)
+dotnet_diagnostic.CA1849.severity = none
+# Assertivas de normalização para lowercase em testes de e-mail são corretas
+dotnet_diagnostic.CA1308.severity = none
+
+# ============================================================================
+# Código gerado pelo EF Core (migrations)
+# ============================================================================
+[src/FCG.Infrastructure/Migrations/**.cs]
+generated_code = true
+
+# ============================================================================
+# Código gerado pelo Reqnroll (features BDD)
+# ============================================================================
+[tests/FCG.Tests.Bdd/Features/**.feature.cs]
+generated_code = true
+
+# ============================================================================
+# Middlewares de erro — catch geral de Exception é intencional
+# ============================================================================
+[src/FCG.API/Middlewares/**.cs]
+# Catch de Exception em middleware global é o ponto do middleware
+dotnet_diagnostic.CA1031.severity = none
+# Logs com argumentos triviais (Request.Path) — avaliação sem custo
+dotnet_diagnostic.CA1873.severity = none
+
+# ============================================================================
+# Handlers de autorização GraphQL — fallback para argumento inválido
+# ============================================================================
+[src/FCG.API/GraphQL/Authorization/**.cs]
+# Catch sem filtro para tratar argumento ausente ou de tipo incompatível como null
+dotnet_diagnostic.CA1031.severity = none
+
+# ============================================================================
+# Seed de desenvolvimento — não é código de produção crítico
+# ============================================================================
+[src/FCG.Infrastructure/Services/DevSeedService.cs]
+# Random com seed fixo é proposital (seed determinístico, não-criptográfico)
+dotnet_diagnostic.CA5394.severity = none
+# Logs de diagnóstico com argumentos triviais
+dotnet_diagnostic.CA1873.severity = none
+
+# ============================================================================
+# Controllers REST — S6960 (Sonar) tem falso positivo com agregados CRUD
+# ============================================================================
+[src/FCG.API/Controllers/**.cs]
+# Controllers REST de um agregado naturalmente têm múltiplos endpoints
+dotnet_diagnostic.S6960.severity = none

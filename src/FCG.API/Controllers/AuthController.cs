@@ -1,4 +1,3 @@
-#pragma warning disable S6960 // falso positivo: controller de autenticacao com 3 endpoints e granularidade correta
 using FCG.Application.DTOs;
 using FCG.Application.UseCases;
 using Microsoft.AspNetCore.Mvc;

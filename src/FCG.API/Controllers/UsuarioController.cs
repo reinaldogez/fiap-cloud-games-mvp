@@ -1,4 +1,3 @@
-#pragma warning disable S6960 // falso positivo: 7 endpoints CRUD de um unico agregado e granularidade normal em APIs REST
 using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using FCG.Application.DTOs;

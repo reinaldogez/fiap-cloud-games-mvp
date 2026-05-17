@@ -169,9 +169,7 @@ public class AuthEndpointsTests : IClassFixture<FcgApiFactory>, IAsyncLifetime
             ClockSkew = TimeSpan.FromSeconds(5),
         };
 
-#pragma warning disable CA1849 // ValidateToken não tem alternativa assíncrona no SDK
         ClaimsPrincipal principal = handler.ValidateToken(body!.AccessToken, parametros, out _);
-#pragma warning restore CA1849
 
         principal.FindFirstValue(JwtRegisteredClaimNames.Email).Should().Be(EmailUsuario);
         principal.FindFirstValue(ClaimTypes.Role).Should().Be("Usuario");
