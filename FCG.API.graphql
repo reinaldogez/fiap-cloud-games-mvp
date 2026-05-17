@@ -59,7 +59,7 @@ query BuscaPorNomeParcial {
 # 3) Mostrar somente os e-mails — destaca o "ask only what you need"
 # ---------------------------------------------------------------------
 query SomenteEmails {
-  usuarios(first: 100) {
+  usuarios(first: 50) {
     nodes {
       email
     }

@@ -20,8 +20,8 @@ public class UsuarioQueries
     /// </summary>
     [GraphQLAuthorize(Roles = new[] { "Administrador" })]
     [UsePaging(IncludeTotalCount = true, MaxPageSize = 100, DefaultPageSize = 20)]
-    [UseFiltering]
-    [UseSorting]
+    [UseFiltering<UsuarioFilterType>]
+    [UseSorting<UsuarioSortType>]
     public IQueryable<Usuario> GetUsuarios([Service] IUsuarioRepository repositorio) =>
         repositorio.Query();
 
